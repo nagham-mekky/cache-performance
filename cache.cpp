@@ -9,7 +9,7 @@ using namespace std;
 #define		CACHE_SIZE		(64*1024)
 #define     CACHE_LINE_SIZE       (16) //(variable, changes, from 16 to 128 bytes)
 //Number of ways: 1, 2, 4, 8, 16 and 32
-
+//testing 
 int blocknum=CACHE_SIZE/ CACHE_LINE_SIZE; //number of blocks
 enum cacheResType {MISS=0, HIT=1};
 
