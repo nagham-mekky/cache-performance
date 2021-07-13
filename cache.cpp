@@ -1,55 +1,34 @@
 #include <iostream>
-#include <iomanip>
+#include  <iomanip>
 #include <vector>
-#include <math.h> 
+#include <cmath>
 
 using namespace std;
 
-#define		DBG				4 //DBG = num of ways
+#define		DBG				1
 #define		DRAM_SIZE		(64*1024*1024)
 #define		CACHE_SIZE		(64*1024)
-#define		CACHE_LINE_SIZE (32)
-
-//int address_bits = log2(DRAM_SIZE);
-//int offset_bits = log2(CACHE_LINE_SIZE);
-//int blocknum = CACHE_SIZE / CACHE_LINE_SIZE;
-//int set_num = blocknum / DBG;
-//int set_bits = log2(set_num);
-//int tag_bits = address_bits - set_bits - offset_bits;
+#define		CACHE_LINE_SIZE (32) //Variable 16-128
+#define		NUM_WAYS		(4) //1-32
 
 int address_bits = log2(DRAM_SIZE);
 int offset_bits = log2(CACHE_LINE_SIZE);
-int blocknum = CACHE_SIZE / CACHE_LINE_SIZE;
-int set_num = blocknum / DBG;
-int set_bits = log2(set_num);
-int tag_bits = address_bits - set_bits - offset_bits;
+int num_lines = CACHE_SIZE / CACHE_LINE_SIZE;
+int num_sets = num_lines / NUM_WAYS;
+int set_bits = log2(num_sets);
+int tag_bits = address_bits - (set_bits + offset_bits);
 
-enum cacheResType { MISS = 0, HIT = 1 };
-
-struct line
-{
-	bool valid = 0;
-	int setnum = -1;
-	int tagnum = -1;
-	//int offset = -1;
-	//int address = -1;
+struct line {
+	int tag;
+	int set;
+	bool valid;
 };
 
-//line* cache = new line[blocknum];
-vector<line> cache(CACHE_SIZE);
-vector<int> counter(set_num, 0);
-//vector<line> cache;
+vector<int> counter(num_sets, 0); //set elements counter
+vector<line> r(NUM_WAYS);
+vector<vector<line>> cache(num_sets, r);
 
-//void readAddress(unsigned int addr) {
-//	line temp;
-//
-//	int mask = pow(2, tag_bits) - 1;
-//	temp.setnum = ((addr >> offset_bits) & 1);
-//	temp.tagnum = ((addr >> (offset_bits + set_bits)) & mask);
-//	temp.valid = 1;
-//
-//	cache.push_back(temp);
-//}
+enum cacheResType { MISS = 0, HIT = 1 };
 
 /* The following implements a random number generator */
 unsigned int m_w = 0xABCCAB99;    /* must not be zero, nor 0x464fffff */
@@ -107,41 +86,35 @@ cacheResType cacheSimDM(unsigned int addr)
 	// returns whether it caused a cache miss or a cache hit
 	line temp;
 
-	int mask = pow(2, tag_bits) - 1;
-	int mask2 = pow(2, set_bits) - 1;
-	temp.setnum = ((addr >> offset_bits) & mask2);
-	temp.tagnum = ((addr >> (offset_bits + set_bits)) & mask);
+	int mask1 = pow(2, set_bits) - 1;
+	temp.set = ((addr >> offset_bits) & mask1);
+	temp.tag = (addr >> (offset_bits + set_bits));
 	temp.valid = 1;
 
 	int ii = 0;
-	for (auto i = cache.begin(); i != cache.end(); i++) {
-		if (temp.setnum == cache[ii].setnum && temp.tagnum == cache[ii].tagnum && temp.valid) {
-			cache.push_back(temp);
+	for (auto i = cache[temp.set].begin(); i != cache[temp.set].end(); i++) {
+		if (temp.set == cache[temp.set][ii].set && temp.tag == cache[temp.set][ii].tag && temp.valid) {
 			return HIT;
 		}
 		ii++;
 	}
 
-	if (counter[temp.setnum] < DBG)
-		counter[temp.setnum]++;
+	if (counter[temp.set] < NUM_WAYS) {
+		cache[temp.set].push_back(temp);
+		counter[temp.set]++;
+	}
 	else
 	{
-		for (auto iter = cache.begin(); iter != cache.end(); ++iter) 
-		{
-			if (iter->setnum == temp.setnum) 
-			{
-				iter = cache.erase(iter);
-				break;
-			}
-		}
+		auto del = cache[temp.set].begin() + (rand() % NUM_WAYS);
+		del = cache[temp.set].erase(del);
+		cache[temp.set].push_back(temp);
 	}
-	cache.push_back(temp);
-	
+	// The current implementation assumes there is no cache; so, every transaction is a miss
 	return MISS;
 }
 
 
-char *msg[2] = { (char*)"Miss",(char*)"Hit" };
+char* msg[2] = { (char*)"Miss",(char*)"Hit" };
 
 #define		NO_OF_Iterations	100		// CHange to 1,000,000
 int main()
