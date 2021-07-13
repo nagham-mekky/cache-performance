@@ -5,16 +5,25 @@
 
 using namespace std;
 
-#define		DBG				1 //DBG = num of ways
+#define		DBG				4 //DBG = num of ways
 #define		DRAM_SIZE		(64*1024*1024)
 #define		CACHE_SIZE		(64*1024)
-#define		CACHE_LINE_SIZE (16)
+#define		CACHE_LINE_SIZE (32)
 
+//int address_bits = log2(DRAM_SIZE);
+//int offset_bits = log2(CACHE_LINE_SIZE);
+//int blocknum = CACHE_SIZE / CACHE_LINE_SIZE;
+//int set_num = blocknum / DBG;
+//int set_bits = log2(set_num);
+//int tag_bits = address_bits - set_bits - offset_bits;
+
+int address_bits = log2(DRAM_SIZE);
+int offset_bits = log2(CACHE_LINE_SIZE);
 int blocknum = CACHE_SIZE / CACHE_LINE_SIZE;
-int offset_bits = log2(CACHE_LINE_SIZE); //check if log2 works correctly //should i be using cache line size or blocknum
-int set_bits = log2((CACHE_SIZE / (CACHE_LINE_SIZE * DBG))); //DBG??? IS IT SET#
-int set_num = (CACHE_SIZE / (CACHE_LINE_SIZE * DBG));
-int tag_bits = CACHE_LINE_SIZE - offset_bits - set_bits;
+int set_num = blocknum / DBG;
+int set_bits = log2(set_num);
+int tag_bits = address_bits - set_bits - offset_bits;
+
 enum cacheResType { MISS = 0, HIT = 1 };
 
 struct line
@@ -99,24 +108,40 @@ cacheResType cacheSimDM(unsigned int addr)
 	line temp;
 
 	int mask = pow(2, tag_bits) - 1;
-	temp.setnum = ((addr >> offset_bits) & 1);
+	int mask2 = pow(2, set_bits) - 1;
+	temp.setnum = ((addr >> offset_bits) & mask2);
 	temp.tagnum = ((addr >> (offset_bits + set_bits)) & mask);
 	temp.valid = 1;
 
+	int ii = 0;
+	for (auto i = cache.begin(); i != cache.end(); i++) {
+		if (temp.setnum == cache[ii].setnum && temp.tagnum == cache[ii].tagnum && temp.valid) {
+			cache.push_back(temp);
+			return HIT;
+		}
+		ii++;
+	}
+
 	if (counter[temp.setnum] < DBG)
 		counter[temp.setnum]++;
-	/*else
+	else
 	{
-		while ()
-	}*/
-
+		for (auto iter = cache.begin(); iter != cache.end(); ++iter) 
+		{
+			if (iter->setnum == temp.setnum) 
+			{
+				iter = cache.erase(iter);
+				break;
+			}
+		}
+	}
 	cache.push_back(temp);
 	
 	return MISS;
 }
 
 
-char msg[2] = { 'M','H' };
+char *msg[2] = { (char*)"Miss",(char*)"Hit" };
 
 #define		NO_OF_Iterations	100		// CHange to 1,000,000
 int main()
@@ -129,8 +154,7 @@ int main()
 
 	for (int inst = 0; inst < NO_OF_Iterations; inst++)
 	{
-		addr = memGenB();
-		//readAddress(addr);
+		addr = memGenF();
 		r = cacheSimDM(addr);
 		if (r == HIT) hit++;
 		cout << "0x" << setfill('0') << setw(8) << hex << addr << " (" << msg[r] << ")\n";
