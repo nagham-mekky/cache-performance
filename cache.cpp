@@ -6,14 +6,14 @@
 using namespace std;
 
 #define		DBG				1
-#define		DRAM_SIZE		(64*1024*1024)
-#define		CACHE_SIZE		(64*1024)
-#define		CACHE_LINE_SIZE (32) //Variable 16-128
-#define		NUM_WAYS		(4) //1-32
+#define		DRAM_SIZE		(64*1024*1024) //*1024 TC- 64*1024
+#define		CACHE_SIZE		(64*1024) //64*1024 --> Test case: 64 TC- 64
+#define		CACHE_LINE_SIZE (16) //Variable 16-128 TC- 16
+#define		NUM_WAYS		(2) //1-32 TC- 2
 
 int address_bits = log2(DRAM_SIZE); //number of address bits
 int offset_bits = log2(CACHE_LINE_SIZE); //number of offset bits
-int num_lines = CACHE_SIZE / CACHE_LINE_SIZE; //number of lines per set
+int num_lines = CACHE_SIZE / CACHE_LINE_SIZE; //number of total lines
 int num_sets = num_lines / NUM_WAYS; // number of sets in the cache
 int set_bits = log2(num_sets); //number of bits representing the sets
 int tag_bits = address_bits - (set_bits + offset_bits); //tag bits
@@ -27,6 +27,8 @@ struct line { //initialize all lines with -1
 vector<int> counter(num_sets, 0); //counts number of elements per set
 vector<line> r(NUM_WAYS);
 vector<vector<line>> cache(num_sets, r); //2D vector representation of sets
+
+int arrTest[15] = { 25, 408, 412, 12, 29, 123, 789, 75, 65, 47, 99, 98, 119, 413, 30 }; //iteration size
 
 enum cacheResType { MISS = 0, HIT = 1 }; //same as a T/F in boolean
 
@@ -79,6 +81,11 @@ unsigned int memGenF()
 	return (addr += 64) % (64 * 4 * 1024);
 }
 
+unsigned int memGenTestCase()
+{
+	static unsigned int addr = 0;
+	return arrTest[addr++];
+}
 
 // Direct Mapped Cache Simulator
 cacheResType cacheSimDM(unsigned int addr)
@@ -106,9 +113,8 @@ cacheResType cacheSimDM(unsigned int addr)
 	}
 	else
 	{
-		auto del = cache[temp.set].begin() + (rand() % NUM_WAYS); //Overwrites a random line from the set 
-		del = cache[temp.set].erase(del);
-		cache[temp.set].push_back(temp);
+		int random = rand() % NUM_WAYS;
+		cache[temp.set][random] = temp;
 	}
 
 	return MISS; //if code reached all the way here then it is a miss
@@ -117,7 +123,7 @@ cacheResType cacheSimDM(unsigned int addr)
 
 char* msg[2] = { (char*)"Miss",(char*)"Hit" }; //output message
 
-#define		NO_OF_Iterations	100		// Change to 1,000,000
+#define		NO_OF_Iterations	100		// Change to 1,000,000 TC- 15
 int main()
 {
 	double hit = 0; //initialize hit counter 
@@ -127,8 +133,8 @@ int main()
 	cout << "Cache Simulator\n";
 
 	for (int inst = 0; inst < NO_OF_Iterations; inst++)
-	{
-		addr = memGenA(); //generates as long as the loop loops
+	{ //TC- MEMGENTEST
+		addr = memGenC(); //generates as long as the loop loops
 		//leaving the function does not cause counter to repeat "static"
 		r = cacheSimDM(addr); //calls this function to figure miss or hit
 		if (r == HIT) hit++; //counter increments
