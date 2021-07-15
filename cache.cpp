@@ -1,59 +1,39 @@
 #include <iostream>
-#include <iomanip>
+#include  <iomanip>
 #include <vector>
-#include <math.h> 
+#include <cmath>
 
 using namespace std;
 
-#define		DBG				4 //DBG = num of ways
+#define		DBG				1
 #define		DRAM_SIZE		(64*1024*1024)
 #define		CACHE_SIZE		(64*1024)
-#define		CACHE_LINE_SIZE (32)
+#define		CACHE_LINE_SIZE (32) //Variable 16-128
+#define		NUM_WAYS		(4) //1-32
 
-//int address_bits = log2(DRAM_SIZE);
-//int offset_bits = log2(CACHE_LINE_SIZE);
-//int blocknum = CACHE_SIZE / CACHE_LINE_SIZE;
-//int set_num = blocknum / DBG;
-//int set_bits = log2(set_num);
-//int tag_bits = address_bits - set_bits - offset_bits;
+int address_bits = log2(DRAM_SIZE); //number of address bits
+int offset_bits = log2(CACHE_LINE_SIZE); //number of offset bits
+int num_lines = CACHE_SIZE / CACHE_LINE_SIZE; //number of lines per set
+int num_sets = num_lines / NUM_WAYS; // number of sets in the cache
+int set_bits = log2(num_sets); //number of bits representing the sets
+int tag_bits = address_bits - (set_bits + offset_bits); //tag bits
 
-int address_bits = log2(DRAM_SIZE);
-int offset_bits = log2(CACHE_LINE_SIZE);
-int blocknum = CACHE_SIZE / CACHE_LINE_SIZE;
-int set_num = blocknum / DBG;
-int set_bits = log2(set_num);
-int tag_bits = address_bits - set_bits - offset_bits;
-
-enum cacheResType { MISS = 0, HIT = 1 };
-
-struct line
-{
-	bool valid = 0;
-	int setnum = -1;
-	int tagnum = -1;
-	//int offset = -1;
-	//int address = -1;
+struct line { //initialize all lines with -1
+	int tag = -1; 
+	int set = -1;
+	bool valid = -1;
 };
 
-//line* cache = new line[blocknum];
-vector<line> cache(CACHE_SIZE);
-vector<int> counter(set_num, 0);
-//vector<line> cache;
+vector<int> counter(num_sets, 0); //counts number of elements per set
+vector<line> r(NUM_WAYS);
+vector<vector<line>> cache(num_sets, r); //2D vector representation of sets
 
-//void readAddress(unsigned int addr) {
-//	line temp;
-//
-//	int mask = pow(2, tag_bits) - 1;
-//	temp.setnum = ((addr >> offset_bits) & 1);
-//	temp.tagnum = ((addr >> (offset_bits + set_bits)) & mask);
-//	temp.valid = 1;
-//
-//	cache.push_back(temp);
-//}
+enum cacheResType { MISS = 0, HIT = 1 }; //same as a T/F in boolean
 
 /* The following implements a random number generator */
 unsigned int m_w = 0xABCCAB99;    /* must not be zero, nor 0x464fffff */
 unsigned int m_z = 0xDEAD6902;    /* must not be zero, nor 0x9068ffff */
+
 unsigned int rand_()
 {
 	m_z = 36969 * (m_z & 65535) + (m_z >> 16);
@@ -105,60 +85,55 @@ cacheResType cacheSimDM(unsigned int addr)
 {
 	// This function accepts the memory address for the memory transaction and 
 	// returns whether it caused a cache miss or a cache hit
-	line temp;
+	line temp; //save address here 
 
-	int mask = pow(2, tag_bits) - 1;
-	int mask2 = pow(2, set_bits) - 1;
-	temp.setnum = ((addr >> offset_bits) & mask2);
-	temp.tagnum = ((addr >> (offset_bits + set_bits)) & mask);
-	temp.valid = 1;
+	int mask1 = pow(2, set_bits) - 1; //generates a mask that has set_bits amount of 1's in binary
+	temp.set = ((addr >> offset_bits) & mask1); //shifts to get set number from the address using mask
+	temp.tag = (addr >> (offset_bits + set_bits)); //shifts set and offset. rest of address is tag
+	temp.valid = 1; //validity bit
 
-	int ii = 0;
-	for (auto i = cache.begin(); i != cache.end(); i++) {
-		if (temp.setnum == cache[ii].setnum && temp.tagnum == cache[ii].tagnum && temp.valid) {
-			cache.push_back(temp);
+	int ii = 0; //iterator counter cant be used for vector access
+	for (auto i = cache[temp.set].begin(); i != cache[temp.set].end(); i++) {
+		if (temp.set == cache[temp.set][ii].set && temp.tag == cache[temp.set][ii].tag && temp.valid) {
 			return HIT;
 		}
 		ii++;
 	}
 
-	if (counter[temp.setnum] < DBG)
-		counter[temp.setnum]++;
+	if (counter[temp.set] < NUM_WAYS) { //counter cant exceed number of elements per set 
+		cache[temp.set].push_back(temp);
+		counter[temp.set]++;
+	}
 	else
 	{
-		for (auto iter = cache.begin(); iter != cache.end(); ++iter) 
-		{
-			if (iter->setnum == temp.setnum) 
-			{
-				iter = cache.erase(iter);
-				break;
-			}
-		}
+		auto del = cache[temp.set].begin() + (rand() % NUM_WAYS); //Overwrites a random line from the set 
+		del = cache[temp.set].erase(del);
+		cache[temp.set].push_back(temp);
 	}
-	cache.push_back(temp);
-	
-	return MISS;
+
+	return MISS; //if code reached all the way here then it is a miss
 }
 
 
-char *msg[2] = { (char*)"Miss",(char*)"Hit" };
+char* msg[2] = { (char*)"Miss",(char*)"Hit" }; //output message
 
-#define		NO_OF_Iterations	100		// CHange to 1,000,000
+#define		NO_OF_Iterations	100		// Change to 1,000,000
 int main()
 {
-	unsigned int hit = 0;
-	cacheResType r;
+	double hit = 0; //initialize hit counter 
+	cacheResType r; //miss or hit
 
-	unsigned int addr;
+	unsigned int addr; //input from generator
 	cout << "Cache Simulator\n";
 
 	for (int inst = 0; inst < NO_OF_Iterations; inst++)
 	{
-		addr = memGenF();
-		r = cacheSimDM(addr);
-		if (r == HIT) hit++;
-		cout << "0x" << setfill('0') << setw(8) << hex << addr << " (" << msg[r] << ")\n";
+		addr = memGenA(); //generates as long as the loop loops
+		//leaving the function does not cause counter to repeat "static"
+		r = cacheSimDM(addr); //calls this function to figure miss or hit
+		if (r == HIT) hit++; //counter increments
+		cout << "0x" << setfill('0') << setw(8) << hex << addr << dec << " (" << msg[r] << ")\n"; //output address in hex and ratio in dec
 	}
-	cout << "Hit ratio = " << (100 * hit / NO_OF_Iterations) << endl;
+	cout << "Hit ratio = " << (100 * hit / NO_OF_Iterations) << endl; //output hit ratio
 }
 //{"mode":"full", "isActive" : false}
