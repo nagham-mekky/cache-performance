@@ -114,7 +114,7 @@ cacheResType cacheSimDM(unsigned int addr)
 	else
 	{
 		int random = rand() % NUM_WAYS;
-		cache[temp.set][random] = temp;
+		cache[temp.set][random] = temp; //overwrite random cache lines when set is full
 	}
 
 	return MISS; //if code reached all the way here then it is a miss
