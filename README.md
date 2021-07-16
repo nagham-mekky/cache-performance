@@ -1,4 +1,4 @@
-# Cache Performance readme file
+# Cache Performance
 
 ## Files
 1. cache.cpp: the source code of the cache simulator.
