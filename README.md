@@ -1,8 +1,8 @@
 # Cache Performance readme file
 
 ## Files
-1 - cache.cpp: the source code of the cache simulator.
-2 - Report.pdf: A PDF file that contains all the data analysis, design and functions extracted from the output of the cache simulator.
+1. cache.cpp: the source code of the cache simulator.
+2. Report.pdf: A PDF file that contains all the data analysis, design and functions extracted from the output of the cache simulator.
 
 ## How to build
 
